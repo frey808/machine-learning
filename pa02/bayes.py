@@ -22,7 +22,8 @@ from results_visualization import *
 # >>> REWRITE THIS FUNCTION
 #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 def uniform_cost_matrix( num_classes ):
-    cost_matrix = np.zeros((num_classes,num_classes))
+    cost_matrix = np.ones((num_classes,num_classes))
+    np.fill_diagonal(cost_matrix, 0)
     return cost_matrix
 
 
@@ -31,7 +32,10 @@ def uniform_cost_matrix( num_classes ):
 #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 def bnrs_unequal_costs( num_classes ):
     # Rows: output class, Columns: Target (ground truth) class
-    cost_matrix = np.ones((num_classes,num_classes))
+    cost_matrix = np.matrix([[-0.2, 0.7, 0.7, 0.7],
+                   [0.7, -0.15, 0.7, 0.7],
+                   [0.7, 0.7, -0.05, 0.7],
+                   [0.3, 0.3, 0.3, 0.3]])
     return cost_matrix
 
 ################################################################
@@ -42,9 +46,9 @@ def bnrs_unequal_costs( num_classes ):
 # >>> REWRITE THIS FUNCTION
 #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 def priors( split_data ):
-    est_priors = [ 1/len(split_data) ] * len(split_data)
-
-    return est_priors
+    
+    n_samples = sum(map(len, split_data))
+    return [len(data_class)/n_samples for data_class in split_data]
 
 def bayesian_parameters( CLASS_DICT, split_data, title='' ):
     # Compute class priors, means, and covariances matrices WITH their inverses (as pairs)
@@ -80,15 +84,24 @@ def covariances( data_matrix ):
     #           due to finite precision. Can use np.allclose() to test for 'closeness'
     #           to ideal identity matrix (e.g., np.eye(2) for 2D identity matrix)
     d = data_matrix.shape[1]
+    mv = mean_vector(data_matrix)
+    cov_matrix = np.zeros((d, d))
+    for sample in data_matrix:
+        for x in range(d):
+            for y in range(d):
+                cov_matrix[x][y] += (sample[x] - mv[x]) * (sample[y] - mv[y])
+    cov_matrix /= (len(data_matrix) - 1)
 
     # Returns a pair: ( covariance_matrix, inverse_covariance_matrix )
-    return ( np.eye(d), np.eye(d) )
+    return ( cov_matrix, np.linalg.inv(cov_matrix) )
 
 #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 # >>> REWRITE THIS FUNCTION
 #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 def mean_density( cov_matrix ):
-    return 1.0
+    n_features = cov_matrix.shape[0]
+    cov_determinant = np.linalg.det(cov_matrix)
+    return (1 / np.pow(2 * np.pi, n_features/2)) * (1 / np.sqrt(cov_determinant))
  
 
 #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -101,8 +114,9 @@ def sq_mhlnbs_dist( data_matrix, mean_vector, cov_inverse ):
 
     # Numpy 'broadcasting' insures that the mean vector is subtracted row-wise
     diff = data_matrix - mean_vector
+    mhlnbs_dist = np.matrix([[d.T @ cov_inverse @ d] for d in diff])
 
-    return np.min(diff,axis=1) 
+    return mhlnbs_dist
 
 def gaussian( mean_density, distances ):
     # NOTE: distances is a column vector of squared mahalanobis distances
@@ -138,8 +152,12 @@ def map_classifier( priors, mean_vectors, covariance_pairs ):
         class_scores = np.zeros( ( num_samples, num_classes + 1 ) ) 
 
         #>>>>>>>>> EDIT THIS SECTION
-        
-        class_scores[:,-1] = np.zeros( num_samples)
+
+        for i in range(num_classes):
+            distances[:,i] = sq_mhlnbs_dist(data_matrix, mean_vectors[i], inv_covariances[i]).T
+            class_scores[:,i] = gaussian(peak_scores[i], distances[:,i])
+
+        class_scores[:,-1] = np.argmax(class_scores[:,:-1], axis=1)
         
         #>>>>>>>>>> END SECTION TO EDIT
         
@@ -170,13 +188,18 @@ def bayes_classifier( cost_matrix, priors, mean_vectors, covariance_pairs ):
 
         #>>>>>>>>> EDIT THIS SECTION
         
-        class_costs_output[:,-1] = np.ones( num_samples )
+        for i in range(num_classes):
+            distances[:,i] = sq_mhlnbs_dist(data_matrix, mean_vectors[i], inv_covariances[i]).T
+            class_posteriors[:,i] = gaussian(peak_scores[i], distances[:,i])
+        
+        for pred in range(num_classes):
+            for gt in range(num_classes):
+                class_costs_output[:,pred] += cost_matrix[pred,gt] * class_posteriors[:,gt]
+
+        class_costs_output[:,-1] = np.argmin(class_costs_output[:,:-1], axis=1)
         
         #>>>>>>>>>> END SECTION TO EDIT
 
         return class_costs_output
 
     return classifier
-
-
-

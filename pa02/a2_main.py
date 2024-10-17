@@ -141,7 +141,7 @@ def main():
     print("\n>>> Drawing decision boundaries (2D) and class score contours (3D)")
 
     # >>> AIM TO GET 'ticks' UP TO 1000 WHILE STILL HAVING THE PROGRAM RUN QUICKLY
-    ticks=100
+    ticks=1000
     draw_results(a1_data, a1_map, "A1 MAP", "A1_MAP.pdf", A1_CLASS_FORMAT, axis_tick_count=ticks)
     draw_results(data, bc_map, "Metal Parts MAP", "Metal_MAP.pdf", BNRS_CLASS_FORMAT, axis_tick_count=ticks)
     draw_results(data, bc_non_uniform, "Metal Parts Unequal Costs", "Metal_NonUniform.pdf", BNRS_CLASS_FORMAT, axis_tick_count=ticks)
